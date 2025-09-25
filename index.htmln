@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Thrill Mode</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    *{box-sizing:border-box}
+    html,body{height:100%;margin:0;font-family:system-ui,Segoe UI,Roboto,Arial;background:#050714;color:#e6eef8}
+    .wrap{height:100%;display:flex;align-items:center;justify-content:center;padding:24px}
+    .stage{width:100%;max-width:980px;border-radius:16px;padding:28px;background:linear-gradient(180deg,rgba(255,255,255,0.02),rgba(255,255,255,0.01));text-align:center;position:relative;overflow:hidden}
+    h1{font-size:28px;margin:6px 0}
+    p{margin:6px 0 16px;color:#bcd2ff99}
+    .bigmsg{font-size:20px;font-weight:700;padding:12px 18px;border-radius:10px;display:inline-block;background:linear-gradient(90deg,#0ea5e9,#7c3aed);color:white}
+    .controls{margin-top:18px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap}
+    button{padding:10px 14px;border-radius:10px;border:0;cursor:pointer;font-weight:600}
+    button.ghost{background:transparent;color:#cfe5ff;border:1px solid rgba(255,255,255,0.04)}
+    button.danger{background:#ef4444;color:white}
+    /* flashy elements */
+    .pulse{position:absolute;inset:0;pointer-events:none;mix-blend-mode:screen;opacity:.12}
+    .spark{position:absolute;width:10px;height:10px;border-radius:50%;background:radial-gradient(circle,#fff,transparent 40%);opacity:0}
+    .overlayMsg{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;font-size:40px;font-weight:800;letter-spacing:1px;opacity:0;transform:scale(.9)}
+    /* confetti container */
+    .confetti{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="stage" id="stage">
+      <div class="pulse" id="pulse"></div>
+      <div class="confetti" id="confetti"></div>
+      <div class="overlayMsg" id="overlay">THRILL MODE</div>
+
+      <h1>Welcome to Thrill Mode</h1>
+      <p>Auto-start visuals for the full cinematic jump-scare vibe. Use the STOP button any time.</p>
+
+      <div class="bigmsg" id="statusText">Get ready...</div>
+
+      <div class="controls">
+        <button id="stop" class="danger">STOP / Reset</button>
+        <button id="mute" class="ghost">Mute Sound</button>
+        <button id="info" class="ghost">How this works</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+  // ---------- config ----------
+  const SOUND_URL = 'https://www.soundjay.com/buttons/sounds/button-09.mp3'; // small sound
+  const BG_INTERVAL = 200; // ms for color flicker
+  const DURATION_MS = 12_000; // how long the main thrill runs
+  // ----------------------------
+
+  let audio = null;
+  let bgTimer = null;
+  let confettiTimer = null;
+  let running = false;
+
+  const stage = document.getElementById('stage');
+  const statusText = document.getElementById('statusText');
+  const overlay = document.getElementById('overlay');
+  const confetti = document.getElementById('confetti');
+
+  function randHex(){ return '#' + Math.floor(Math.random()*16777215).toString(16).padStart(6,'0'); }
+
+  function startSound(){
+    try{
+      audio = new Audio(SOUND_URL);
+      audio.loop = true;
+      const playPromise = audio.play();
+      if (playPromise !== undefined) {
+        playPromise.catch(e => {
+          // autoplay might be blocked — that's fine
+          console.warn('autoplay blocked', e);
+        });
+      }
+    }catch(e){ console.warn(e); }
+  }
+  function stopSound(){
+    if(audio){ try{ audio.pause(); audio.currentTime = 0; }catch(e){} audio = null; }
+  }
+
+  function startBgFlicker(){
+    bgTimer = setInterval(()=> {
+      document.body.style.background = `linear-gradient(120deg, ${randHex()}, ${randHex()})`;
+      stage.style.boxShadow = `0 20px 80px ${randHex()}66`;
+    }, BG_INTERVAL);
+  }
+  function stopBgFlicker(){
+    clearInterval(bgTimer); bgTimer = null;
+    document.body.style.background = ''; stage.style.boxShadow = '';
+  }
+
+  function showOverlayPulse(){
+    overlay.style.opacity = 1;
+    overlay.style.transform = 'scale(1)';
+    overlay.style.transition = 'transform .2s ease';
+    setTimeout(()=> overlay.style.opacity = 0, 1800);
+  }
+
+  // lightweight confetti
+  function spawnConfettiBurst(){
+    const count = 24;
+    const w = confetti.clientWidth || window.innerWidth;
+    for(let i=0;i<count;i++){
+      const node = document.createElement('div');
+      node.style.position = 'absolute';
+      node.style.left = Math.random()*100 + '%';
+      node.style.top = '-10px';
+      const size = 6 + Math.random()*12;
+      node.style.width = size+'px';
+      node.style.height = size+'px';
+      node.style.background = randHex();
+      node.style.opacity = 0.95;
+      node.style.transform = `rotate(${Math.random()*360}deg)`;
+      node.style.borderRadius = (Math.random()>0.6? '4px':'50%');
+      node.style.willChange = 'transform, top, left';
+      confetti.appendChild(node);
+
+      const fall = 1200 + Math.random()*1600;
+      const leftDrift = (Math.random()-0.5)*200;
+      node.animate([
+        {transform:`translateY(0) translateX(0)`, opacity:1},
+        {transform:`translateY(${fall}px) translateX(${leftDrift}px)`, opacity:0.2}
+      ], {duration: fall+500, easing:'cubic-bezier(.2,.6,.2,1)'});
+      setTimeout(()=> node.remove(), fall+700);
+    }
+  }
+
+  function startConfettiLoop(){
+    spawnConfettiBurst();
+    confettiTimer = setInterval(spawnConfettiBurst, 1400);
+  }
+  function stopConfettiLoop(){
+    clearInterval(confettiTimer); confettiTimer = null;
+    confetti.innerHTML = '';
+  }
+
+  function startThrill(){
+    if (running) return;
+    running = true;
+    statusText.innerText = 'Thrill engaged!';
+    showOverlayPulse();
+
+    // visual/audio
+    startBgFlicker();
+    startConfettiLoop();
+    startSound();
+
+    // small staged messages
+    const steps = ['Brace yourself','3...','2...','1...','LAUNCH!'];
+    let i=0;
+    const stepTimer = setInterval(()=> {
+      statusText.innerText = steps[i++] || 'Enjoy!';
+      if (i>steps.length) clearInterval(stepTimer);
+      showOverlayPulse();
+    }, 900);
+
+    // end after duration
+    setTimeout(()=> {
+      statusText.innerText = 'Thrill complete — resetting';
+      stopEverything();
+    }, DURATION_MS);
+  }
+
+  function stopEverything(){
+    stopSound();
+    stopBgFlicker();
+    stopConfettiLoop();
+    running = false;
+    statusText.innerText = 'Stopped — you are safe.';
+    overlay.style.opacity = 0;
+    document.body.style.background = '';
+  }
+
+  // Buttons
+  document.getElementById('stop').addEventListener('click', () => {
+    stopEverything();
+  });
+  document.getElementById('mute').addEventListener('click', () => {
+    stopSound();
+    statusText.innerText = 'Sound muted';
+  });
+  document.getElementById('info').addEventListener('click', () => {
+    alert('Thrill Mode auto-starts on page load and runs intense visuals. No tabs are opened; no back-button trapping. STOP button restores everything.');
+  });
+
+  // auto-start on load
+  window.addEventListener('load', () => {
+    // small delay so page settles then auto-starts
+    setTimeout(()=> {
+      try { startThrill(); } catch (e) { console.warn(e); }
+    }, 500);
+  });
+
+  // make sure we clean up on unload
+  window.addEventListener('beforeunload', stopEverything);
+</script>
+</body>
+</html>
